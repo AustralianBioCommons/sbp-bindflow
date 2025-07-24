@@ -12,6 +12,8 @@ include { JSONMANAGER               } from '../../modules/local/jsonmanager'
 include { samplesheetToList         } from 'plugin/nf-schema'
 include { BINDCRAFT                 } from '../../modules/local/bindcraft'
 include { RANKER                 } from '../../modules/local/ranker'
+include { GENERATE_REPORT        } from '../../modules/local/generate_report'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     SUBWORKFLOW TO INITIALISE PIPELINE
@@ -82,6 +84,11 @@ workflow RUN_BINDCRAFT {
         BINDCRAFT.out.stats.map{[["id": it[0].id], it[1]]}.groupTuple(),
         BINDCRAFT.out.accepted_ranked.map{[["id": it[0].id], it[1]]}.groupTuple()
     )
+
+    GENERATE_REPORT(
+        RANKER.out.stats.map{[it[0], "Testing report information"]}
+    )
+
     
     emit:
     input_json  = JSONMANAGER.out.json
@@ -93,6 +100,7 @@ workflow RUN_BINDCRAFT {
     output_dir  = BINDCRAFT.out.output_dir
     stats       = RANKER.out.stats
     ranked      = RANKER.out.accepted_ranked
+    reports     = GENERATE_REPORT.out.report
     versions    = ch_versions
 }
 
