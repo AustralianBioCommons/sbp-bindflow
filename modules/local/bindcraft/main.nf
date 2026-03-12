@@ -22,7 +22,7 @@ process BINDCRAFT {
     def args = task.ext.args ?: ''
     
     """
-    python /work/FreeBindCraft/bindcraft.py \\
+    python -u /work/FreeBindCraft/bindcraft.py \\
         --settings ${target_file} \\
         --filters ${filters} \\
         --advanced ${advanced_settings} \\
