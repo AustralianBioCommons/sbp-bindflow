@@ -12,6 +12,10 @@ process BINDCRAFT {
         tuple val(meta), path("*_output/Accepted/Ranked"), emit: accepted_ranked
         tuple val(meta), path("*_output/Accepted/*pdb"), emit: accepted
         tuple val(meta), path("*_output"), emit: output_dir
+        tuple val(meta), path("*_output/failure_csv.csv") , emit: failure_csv
+        tuple val(meta), path("*_output/final_design_stats.csv"), emit: final_design_stats
+        tuple val(meta), path("*_output/mpnn_design_stats.csv"), emit: mpnn_design_stats
+        tuple val(meta), path("*_output/trajectory_stats.csv"), emit: trajectory_stats
         path "versions.yml", emit: versions
 
     when:
