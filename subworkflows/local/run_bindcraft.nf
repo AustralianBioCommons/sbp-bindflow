@@ -86,10 +86,18 @@ workflow RUN_BINDCRAFT {
     )
 
     GENERATE_REPORT(
-        RANKER.out.stats.map{[it[0], "Testing report information"]}
+        BINDCRAFT.out.output_dir.map{it[1]}.collect(),
+        BINDCRAFT.out.failure_csv.map{it[1]},
+        RANKER.out.stats.map{it[1]},
+        BINDCRAFT.out.mpnn_design_stats
+        .map{it[1].text}
+        .collectFile( name: "mpnn_design_stats.csv" ),
+        BINDCRAFT.out.trajectory_stats
+        .map{it[1].text}
+        .collectFile( name: "trajectory_stats.csv" ),
+        Channel.fromPath("${projectDir}/assets/bindcraft_reporting.qmd").first()
     )
 
-    
     emit:
     input_json  = JSONMANAGER.out.json
                     .flatten()
