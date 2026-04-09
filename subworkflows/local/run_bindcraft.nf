@@ -84,10 +84,25 @@ workflow RUN_BINDCRAFT {
         BINDCRAFT.out.stats.map{[["id": it[0].id], it[1]]}.groupTuple(),
         BINDCRAFT.out.accepted_ranked.map{[["id": it[0].id], it[1]]}.groupTuple()
     )
-
+    
     GENERATE_REPORT(
         BINDCRAFT.out.output_dir.map{it[1]}.collect(),
-        BINDCRAFT.out.failure_csv.map{it[1]},
+        BINDCRAFT.out.failure_csv
+            .map{it[1]}
+            .splitCsv( header: true )
+            .collect()
+            .map{
+                it.inject([:]) { acc, map ->
+                    map.each { k, v ->
+                        def num = v?.toString()?.isNumber() ? v.toBigDecimal() : 0
+                        acc[k] = (acc[k] ?: 0) + num
+                }
+                def keys = acc.keySet().toList()
+                def values = keys.collect { acc[it] }
+                keys.join(',') + "\n" + values.join(',')
+                }
+            }.collectFile( name: "failure_csv.csv")
+            ,
         RANKER.out.stats.map{it[1]},
         BINDCRAFT.out.mpnn_design_stats
         .map{it[1].text}
