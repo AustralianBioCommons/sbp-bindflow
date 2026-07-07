@@ -9,12 +9,12 @@ Content-Type: text/html; charset=utf-8
 $email_html
 
 --nfcoremimeboundary
-Content-Type: image/png;name="ziadbkh-bindflow_logo.png"
+Content-Type: image/png;name="sbp-bindflow_logo.png"
 Content-Transfer-Encoding: base64
 Content-ID: <nfcorepipelinelogo>
-Content-Disposition: inline; filename="ziadbkh-bindflow_logo_light.png"
+Content-Disposition: inline; filename="sbp-bindflow_logo_light.png"
 
-<% out << new File("$projectDir/assets/ziadbkh-bindflow_logo_light.png").
+<% out << new File("$projectDir/assets/sbp-bindflow_logo_light.png").
     bytes.
     encodeBase64().
     toString().
