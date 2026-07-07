@@ -1,4 +1,4 @@
-# Australian-Structural-Biology-Computing/bindflow: Output
+# AustralianBioCommons/sbp-bindflow: Output
 
 ## Introduction
 

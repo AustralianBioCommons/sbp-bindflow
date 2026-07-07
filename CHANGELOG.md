@@ -1,14 +1,14 @@
-# Australian-Structural-Biology-Computing/bindflow: Changelog
+# AustralianBioCommons/sbp-bindflow: Changelog
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## v1.0.0dev - [date]
 
-Initial release of Australian-Structural-Biology-Computing/bindflow, created with the [nf-core](https://nf-co.re/) template.
+Initial release of AustralianBioCommons/sbp-bindflow, created with the [nf-core](https://nf-co.re/) template.
 
 ### `Added`
-- [[#PR1](https://github.com/Australian-Structural-Biology-Computing/bindflow/pull/1)] - Add basic workflow documentation.
+- [[#PR1](https://github.com/AustralianBioCommons/sbp-bindflow/pull/1)] - Add basic workflow documentation.
 
 ### `Fixed`
 

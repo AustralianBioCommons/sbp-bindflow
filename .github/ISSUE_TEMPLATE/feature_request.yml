@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest an idea for the ziadbkh/bindflow pipeline
+description: Suggest an idea for the AustralianBioCommons/sbp-bindflow pipeline
 labels: enhancement
 body:
   - type: textarea

@@ -1,5 +1,5 @@
 //
-// Subworkflow with functionality specific to the ziadbkh/bindflow pipeline
+// Subworkflow with functionality specific to the AustralianBioCommons/sbp-bindflow pipeline
 //
 
 /*

@@ -1,6 +1,6 @@
 {
-    "name": "ziadbkh/bindflow",
-    "homePage": "https://github.com/ziadbkh/bindflow",
+    "name": "AustralianBioCommons/sbp-bindflow",
+    "homePage": "https://github.com/AustralianBioCommons/sbp-bindflow",
     "repos": {
         "https://github.com/nf-core/modules.git": {
             "modules": {

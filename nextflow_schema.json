@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "$id": "https://raw.githubusercontent.com/ziadbkh/bindflow/master/nextflow_schema.json",
-    "title": "ziadbkh/bindflow pipeline parameters",
+    "$id": "https://raw.githubusercontent.com/AustralianBioCommons/sbp-bindflow/master/nextflow_schema.json",
+    "title": "AustralianBioCommons/sbp-bindflow pipeline parameters",
     "description": "bindcraft and others",
     "type": "object",
     "$defs": {
