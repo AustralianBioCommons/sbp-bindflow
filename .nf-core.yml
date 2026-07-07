@@ -42,7 +42,7 @@ template:
   force: true
   is_nfcore: false
   name: bindflow
-  org: ziadbkh
+  org: AustralianBioCommons
   outdir: .
   skip_features:
   - igenomes
