@@ -34,6 +34,7 @@ workflow BINDFLOW {
         ch_batches,
         quote_char
     )
+
     //
     // Collate and save software versions
     //

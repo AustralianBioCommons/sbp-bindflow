@@ -223,5 +223,5 @@ def validateInputParameters() {
 // Print a warning when using Bindcraft
 //
 def checkBindcraftContainer() {
-    log.warn "You need to provide a valid path for the singularity/Docker container! or bindcraft needs to be avaialble on the system!"
+    error ("You need to provide a valid path for the singularity/Docker container! or bindcraft needs to be avaialble on the system!")
 }

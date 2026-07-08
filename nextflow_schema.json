@@ -52,8 +52,6 @@
             "properties": {
                 "bindcraft_container": {
                     "type": "string",
-                    "format": "file-path",
-                    "exists": true,
                     "description": "Path to bindcraft container to be used during execution.",
                     "help_text": "",
                     "fa_icon": "fas fa-file-csv"
