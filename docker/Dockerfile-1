@@ -1,0 +1,105 @@
+# This Dockerfile was adapted from the below to create a bindcraft container by Uwe Winter <uwe@biocommons.org.au>
+# This Dockerfile was adapted for running on Azure CycleCloud by Felipe Ayora
+# (bizdata.co.nz)
+
+# Copyright 2021 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Look for latest version that matches NVIDIA drivers on the Azure GPU machines:
+#   https://hub.docker.com/r/nvidia/cuda/tags?page=1&name=cudnn8-runtime-ubuntu18
+
+# Build image:
+# 1. Run:
+#       git clone https://github.com/deepmind/alphafold/releases/tag/vx.x.x
+#       cd ./alphafold
+# 2. Run:
+#       sudo docker build -t <repo/tag:version> -f ./path/to/this/Dockerfile .
+
+ARG CUDA=12.4.1
+FROM nvidia/cuda:${CUDA}-cudnn-runtime-ubuntu22.04
+
+# Remove entrypoint messaging to stdout
+RUN rm /opt/nvidia/entrypoint.d/*
+
+# FROM directive resets ARGS, so we specify again
+
+ARG CUDA_MAJOR=12
+ARG CUDACMDTOOLS=12.4
+
+# Use bash to support string substitution.
+SHELL ["/bin/bash", "-c"]
+
+RUN apt-get update \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y  --no-install-recommends \
+      build-essential \
+      cmake \
+      cuda-command-line-tools-${CUDACMDTOOLS/./-} \
+      wget \
+      git \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get autoremove -y \
+    && apt-get clean
+
+# Install Miniconda package manager.
+RUN wget -q -P /tmp \
+  https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+    && bash /tmp/Miniconda3-latest-Linux-x86_64.sh -b -p /opt/conda \
+    && rm /tmp/Miniconda3-latest-Linux-x86_64.sh
+
+# Install conda packages.
+ENV PATH="/opt/conda/bin:$PATH"
+
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
+COPY bindcraft /app/
+RUN chmod +x /app/install_bindcraft.sh
+
+WORKDIR /app/
+RUN /app/install_bindcraft.sh --cuda 12.4.1 --pkg_manager 'conda'
+
+# Install pip packages.
+
+# Add SETUID bit to the ldconfig binary so that non-root users can run it.
+RUN chmod u+s /sbin/ldconfig.real
+
+# properly configure ldconfig and run it
+RUN echo "/opt/conda/lib" > /etc/ld.so.conf.d/conda.conf \
+    && echo "/opt/conda/envs/BindCraft/lib" >> /etc/ld.so.conf.d/conda.conf \
+    && ldconfig
+
+# ENTRYPOINT does not support easily running multiple commands, so instead we
+# write a shell script to wrap them up.
+# We need to run `ldconfig` first to ensure GPUs are visible, due to some quirk
+# with Debian. See https://github.com/NVIDIA/nvidia-docker/issues/1399 for
+# details.
+RUN printf '#!/bin/bash\n\
+ldconfig\n\
+__conda_setup="$('/opt/conda/bin/conda' '\''shell.bash'\'' '\''hook'\'' 2> /dev/null)"\n\
+if [ $? -eq 0 ]; then\n\
+    eval "$__conda_setup"\n\
+else\n\
+    if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then\n\
+        . "/opt/conda/etc/profile.d/conda.sh"\n\
+    else\n\
+        export PATH="/opt/conda/bin:$PATH"\n\
+    fi\n\
+fi\n\
+unset __conda_setup\n\
+conda activate BindCraft\n\
+python -u /app/bindcraft.py "$@"\n' > /app/run_bindcraft.sh \
+  && chmod +x /app/run_bindcraft.sh
+
+# Removed entry point to facilitate running via Galaxy bash scripts
+ENTRYPOINT ["/app/run_bindcraft.sh"]

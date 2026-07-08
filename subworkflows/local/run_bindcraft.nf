@@ -12,6 +12,8 @@ include { JSONMANAGER               } from '../../modules/local/jsonmanager'
 include { samplesheetToList         } from 'plugin/nf-schema'
 include { BINDCRAFT                 } from '../../modules/local/bindcraft'
 include { RANKER                 } from '../../modules/local/ranker'
+include { GENERATE_REPORT        } from '../../modules/local/generate_report'
+
 /*
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     SUBWORKFLOW TO INITIALISE PIPELINE
@@ -83,6 +85,34 @@ workflow RUN_BINDCRAFT {
         BINDCRAFT.out.accepted_ranked.map{[["id": it[0].id], it[1]]}.groupTuple()
     )
     
+    GENERATE_REPORT(
+        BINDCRAFT.out.output_dir.map{it[1]}.collect(),
+        BINDCRAFT.out.failure_csv
+            .map{it[1]}
+            .splitCsv( header: true )
+            .collect()
+            .map{
+                it.inject([:]) { acc, map ->
+                    map.each { k, v ->
+                        def num = v?.toString()?.isNumber() ? v.toBigDecimal() : 0
+                        acc[k] = (acc[k] ?: 0) + num
+                }
+                def keys = acc.keySet().toList()
+                def values = keys.collect { acc[it] }
+                keys.join(',') + "\n" + values.join(',')
+                }
+            }.collectFile( name: "failure_csv.csv")
+            ,
+        RANKER.out.stats.map{it[1]},
+        BINDCRAFT.out.mpnn_design_stats
+        .map{it[1].text}
+        .collectFile( name: "mpnn_design_stats.csv" ),
+        BINDCRAFT.out.trajectory_stats
+        .map{it[1].text}
+        .collectFile( name: "trajectory_stats.csv" ),
+        Channel.fromPath("${projectDir}/assets/bindcraft_reporting.qmd").first()
+    )
+
     emit:
     input_json  = JSONMANAGER.out.json
                     .flatten()
@@ -93,6 +123,7 @@ workflow RUN_BINDCRAFT {
     output_dir  = BINDCRAFT.out.output_dir
     stats       = RANKER.out.stats
     ranked      = RANKER.out.accepted_ranked
+    reports     = GENERATE_REPORT.out.report
     versions    = ch_versions
 }
 

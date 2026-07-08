@@ -14,7 +14,7 @@
 
 `outdir`: the output directory where the results will be stored.
 
-`bindcraft_container`: the path to bindcraft container that is needed run the workflow.
+`bindcraft_container`: the path to bindcraft container that is needed run the workflow. By default, teh workflow uses n open source version of Bindcraft ([FreeBindCraft](https://github.com/cytokineking/FreeBindCraft)) that is is hosted at Docker hub ([freebindcraft:1.0.3](https://hub.docker.com/r/australianbiocommons/freebindcraft)).
 
 ### Optional
 
