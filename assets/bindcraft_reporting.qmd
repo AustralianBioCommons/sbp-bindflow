@@ -1,0 +1,1306 @@
+---
+title: "BindCraft Analysis Report"
+author: "Australian-Protein-Design-Initiative/nf-binder-design"
+date: last-modified
+format:
+  html:
+    code-fold: true
+    toc: true
+    toc-depth: 3
+    theme: cosmo
+    embed-resources: true
+    page-layout: full
+execute:
+  echo: false
+jupyter: python3
+---
+
+# Overview
+
+This report presents a summary of the BindCraft run results, including failure metrics (`failure_csv.csv`), MPNN sequence design scoring (`mpnn_design_stats.csv`), and scores for all trajectories (`trajectory_stats.csv`) and final accepted design statistics (`final_design_stats.csv`).
+
+```{python}
+# | label: setup
+# | message: false
+# | warning: false
+
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from pathlib import Path
+import warnings
+
+warnings.filterwarnings("ignore")
+
+# Set plotting style
+plt.style.use("fast")
+
+boxplot_jitter = 0.05
+
+
+# Helper function to safely load CSV files
+def safe_load_csv(filename, description):
+    try:
+        if Path(filename).exists():
+            df = pd.read_csv(filename)
+            # print(f"✓ Loaded {description}: {len(df)} rows, {len(df.columns)} columns")
+            return df
+        else:
+            print(f"⚠ File not found: {filename}")
+            return None
+    except Exception as e:
+        print(f"✗ Error loading {filename}: {e}")
+        return None
+
+
+print(f"Run path: {os.getcwd()}")
+
+# Load all available data files
+failure_df = safe_load_csv("failure_csv.csv", "Failure metrics")
+final_design_df = safe_load_csv("final_design_stats.csv", "Final design statistics")
+mpnn_design_df = safe_load_csv("mpnn_design_stats.csv", "MPNN design statistics")
+trajectory_df = safe_load_csv("trajectory_stats.csv", "Trajectory statistics")
+
+# print(f"\nData availability summary:")
+# failure_status = "Available" if failure_df is not None else "Not available"
+# final_status = "Available" if final_design_df is not None else "Not available"
+# mpnn_status = "Available" if mpnn_design_df is not None else "Not available"
+# trajectory_status = "Available" if trajectory_df is not None else "Not available"
+
+# print(f"- Failure metrics: {failure_status}")
+# print(f"- Final design stats: {final_status}")
+# print(f"- MPNN design stats: {mpnn_status}")
+# print(f"- Trajectory stats: {trajectory_status}")
+```
+
+```{python}
+# | label: acceptance-summary
+# | message: false
+
+from IPython.display import HTML
+from pathlib import Path
+import glob
+
+# Calculate acceptance rate from CSV data
+total_trajectories = len(trajectory_df) if trajectory_df is not None else 0
+accepted_count = len(final_design_df) if final_design_df is not None else 0
+
+
+# Count PDB files in different directories
+def count_pdb_files(directory_pattern):
+    """Count .pdb/.pdb.gz files in directories matching the pattern"""
+    count = 0
+    for path in Path(".").glob(directory_pattern):
+        if path.is_dir():
+            # The glob pattern "*.{pdb,pdb.gz}" is not valid in Python's pathlib/glob.
+            # Instead, count both .pdb and .pdb.gz files separately:
+            count += len(list(path.glob("*.pdb")))
+            count += len(list(path.glob("*.pdb.gz")))
+    return count
+
+
+# Count files in different categories
+rejected_count = count_pdb_files("./batches/*/results/Rejected")
+relaxed_count = count_pdb_files("./batches/*/results/Trajectory/Relaxed")
+lowconf_count = count_pdb_files("./batches/*/results/Trajectory/LowConfidence")
+clashing_count = count_pdb_files("./batches/*/results/Trajectory/Clashing")
+
+# Calculate total from directory counts
+total_from_dirs = relaxed_count + lowconf_count + clashing_count + rejected_count
+
+# Use directory counts if available, otherwise fall back to CSV data
+if total_from_dirs > 0:
+    total_trajectories = total_from_dirs
+
+if relaxed_count > 0:
+    acceptance_rate = (accepted_count / relaxed_count) * 100
+    html_content = f"""
+    <div style="
+        border: 2px solid #3498db;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px 0;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    ">
+        <h2 style="text-align: center; font-size: 28px; color: #2c3e50; margin: 0 0 20px 0;">
+            Accept rate: {acceptance_rate:.1f}% ({accepted_count} / {relaxed_count})
+        </h2>
+        <table style="
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        ">
+            <tr style="background-color: #f8f9fa;">
+                <td style="padding: 12px; border: 1px solid #bdc3c7;">Relaxed</td>
+                <td style="padding: 12px; border: 1px solid #bdc3c7; text-align: center;">{relaxed_count}</td>
+            </tr>
+            <tr style="background-color: #ffffff;">
+                <td style="padding: 12px; border: 1px solid #bdc3c7;">Rejected</td>
+                <td style="padding: 12px; border: 1px solid #bdc3c7; text-align: center;">{rejected_count}</td>
+            </tr>
+            <tr style="background-color: {'#ffebee' if lowconf_count > relaxed_count else '#f8f9fa'};">
+                <td style="padding: 12px; border: 1px solid #bdc3c7;">LowConfidence</td>
+                <td style="padding: 12px; border: 1px solid #bdc3c7; text-align: center;">{lowconf_count}</td>
+            </tr>
+            <tr style="background-color: {'#ffebee' if clashing_count > relaxed_count else '#ffffff'};">
+                <td style="padding: 12px; border: 1px solid #bdc3c7;">Clashing</td>
+                <td style="padding: 12px; border: 1px solid #bdc3c7; text-align: center;">{clashing_count}</td>
+            </tr>
+            <tr style="background-color: #ffffff;">
+                <td style="padding: 12px; border-top: 3px solid #2c3e50; border-left: 1px solid #bdc3c7; border-right: 1px solid #bdc3c7; border-bottom: 1px solid #bdc3c7; font-weight: bold;">Total Trajectories</td>
+                <td style="padding: 12px; border-top: 3px solid #2c3e50; border-left: 1px solid #bdc3c7; border-right: 1px solid #bdc3c7; border-bottom: 1px solid #bdc3c7; text-align: center; font-weight: bold;">{total_trajectories}</td>
+            </tr>
+        </table>
+    </div>
+    """
+    display(HTML(html_content))
+else:
+    html_content = """
+    <div style="
+        border: 2px solid #e74c3c;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px 0;
+        background: linear-gradient(135deg, #fdf2f2 0%, #fadbd8 100%);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    ">
+        <h2 style="text-align: center; font-size: 24px; color: #c0392b; margin: 0;">
+            No trajectory data available
+        </h2>
+    </div>
+    """
+    display(HTML(html_content))
+```
+
+# Design Attrition Summary
+
+These graphs summarize the step in the BindCraft workflow or structural property filter that resulted in a design being rejected.
+
+```{python}
+# | label: failure-metrics-trajectory
+# | fig-width: 8
+# | fig-height: 6
+
+if failure_df is not None and len(failure_df) > 0:
+    # Define column ranges for the three plots
+    trajectory_cols = ['Trajectory_logits_pLDDT', 'Trajectory_softmax_pLDDT', 'Trajectory_one-hot_pLDDT', 
+                      'Trajectory_final_pLDDT', 'Trajectory_Contacts', 'Trajectory_Clashes', 'Trajectory_WrongHotspot',
+                      'MPNN_score', 'MPNN_seq_recovery', 'pLDDT', 'pTM', 'i_pTM', 'pAE', 'i_pAE', 'i_pLDDT', 'ss_pLDDT']
+    
+    # Get available columns that exist in the dataframe
+    available_trajectory_cols = [col for col in trajectory_cols if col in failure_df.columns]
+    
+    if len(available_trajectory_cols) > 0:
+        # Get values for trajectory columns
+        if len(failure_df) > 1:
+            trajectory_values = failure_df[available_trajectory_cols].sum().values
+        else:
+            trajectory_values = failure_df.iloc[0][available_trajectory_cols].values
+        
+        # Create trajectory plot
+        fig, ax = plt.subplots(figsize=(8, 6))
+        bars = ax.bar(range(len(available_trajectory_cols)), trajectory_values, alpha=0.7, color="steelblue")
+        
+        # Add value labels on bars for non-zero values
+        for i, (bar, val) in enumerate(zip(bars, trajectory_values)):
+            if val > 0:
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
+                       str(int(val)), ha='center', va='bottom', fontsize=8, fontweight='bold')
+        
+        ax.set_xlabel("Trajectory Metrics", fontsize=12)
+        ax.set_ylabel("Number of Failures", fontsize=12)
+        ax.set_title("BindCraft Trajectory Failure Metrics", fontsize=14, fontweight="bold")
+        ax.set_xticks(range(len(available_trajectory_cols)))
+        ax.set_xticklabels(available_trajectory_cols, rotation=45, ha="right", fontsize=9)
+        ax.grid(axis="y", alpha=0.3)
+        ax.set_axisbelow(True)
+        plt.tight_layout()
+        plt.show()
+        
+
+```
+
+```{python}
+# | label: failure-metrics-structure
+# | fig-width: 8
+# | fig-height: 6
+
+if failure_df is not None and len(failure_df) > 0:
+    # Get all columns from Unrelaxed_Clashes to the last InterfaceAAs_ column
+    all_cols = list(failure_df.columns)
+    start_idx = all_cols.index('Unrelaxed_Clashes') if 'Unrelaxed_Clashes' in all_cols else 0
+    
+    # Find the last InterfaceAAs_ column
+    interface_cols = [col for col in all_cols if col.startswith('InterfaceAAs_')]
+    if interface_cols:
+        last_interface_col = max(interface_cols, key=lambda x: all_cols.index(x))
+        end_idx = all_cols.index(last_interface_col) + 1
+    else:
+        end_idx = len(all_cols)
+    
+    structure_cols = all_cols[start_idx:end_idx]
+    
+    if len(structure_cols) > 0:
+        # Get values for structure columns
+        if len(failure_df) > 1:
+            structure_values = failure_df[structure_cols].sum().values
+        else:
+            structure_values = failure_df.iloc[0][structure_cols].values
+        
+        # Filter out InterfaceAAs_ columns unless they have non-zero values
+        filtered_structure_cols = []
+        filtered_structure_values = []
+        for col, val in zip(structure_cols, structure_values):
+            if not col.startswith('InterfaceAAs_') or val > 0:
+                filtered_structure_cols.append(col)
+                filtered_structure_values.append(val)
+        
+        if len(filtered_structure_cols) > 0:
+            # Create structure plot
+            fig, ax = plt.subplots(figsize=(8, 6))
+            bars = ax.bar(range(len(filtered_structure_cols)), filtered_structure_values, alpha=0.7, color="coral")
+            
+            # Add value labels on bars for non-zero values
+            for i, (bar, val) in enumerate(zip(bars, filtered_structure_values)):
+                if val > 0:
+                    ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
+                           str(int(val)), ha='center', va='bottom', fontsize=8, fontweight='bold')
+            
+            ax.set_xlabel("Structure Metrics", fontsize=12)
+            ax.set_ylabel("Number of Failures", fontsize=12)
+            ax.set_title("BindCraft Structure Failure Metrics", fontsize=14, fontweight="bold")
+            ax.set_xticks(range(len(filtered_structure_cols)))
+            ax.set_xticklabels(filtered_structure_cols, rotation=45, ha="right", fontsize=9)
+            ax.grid(axis="y", alpha=0.3)
+            ax.set_axisbelow(True)
+            plt.tight_layout()
+            plt.show()
+            
+
+```
+
+```{python}
+# | label: failure-metrics-final
+# | fig-width: 8
+# | fig-height: 6
+
+if failure_df is not None and len(failure_df) > 0:
+    # Get columns from Hotspot_RMSD to the end
+    all_cols = list(failure_df.columns)
+    start_idx = all_cols.index('Hotspot_RMSD') if 'Hotspot_RMSD' in all_cols else len(all_cols) - 4
+    final_cols = all_cols[start_idx:]
+    
+    if len(final_cols) > 0:
+        # Get values for final columns
+        if len(failure_df) > 1:
+            final_values = failure_df[final_cols].sum().values
+        else:
+            final_values = failure_df.iloc[0][final_cols].values
+        
+        # Create final plot
+        fig, ax = plt.subplots(figsize=(8, 6))
+        bars = ax.bar(range(len(final_cols)), final_values, alpha=0.7, color="lightgreen")
+        
+        # Add value labels on bars for non-zero values
+        for i, (bar, val) in enumerate(zip(bars, final_values)):
+            if val > 0:
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
+                       str(int(val)), ha='center', va='bottom', fontsize=8, fontweight='bold')
+        
+        ax.set_xlabel("Final Metrics", fontsize=12)
+        ax.set_ylabel("Number of Failures", fontsize=12)
+        ax.set_title("BindCraft Final Failure Metrics", fontsize=14, fontweight="bold")
+        ax.set_xticks(range(len(final_cols)))
+        ax.set_xticklabels(final_cols, rotation=45, ha="right", fontsize=9)
+        ax.grid(axis="y", alpha=0.3)
+        ax.set_axisbelow(True)
+        plt.tight_layout()
+        plt.show()
+        
+
+```
+
+# Trajectory Summary
+
+Summary of all the design trajectories, accepted and rejected.
+
+```{python}
+#| label: trajectory-boxplots
+#| fig-width: 12
+#| fig-height: 8
+
+        if trajectory_df is not None and len(trajectory_df) > 0:
+            # Key trajectory metrics for box plots (excluding dG and Target_RMSD)
+            trajectory_metrics = ['pLDDT', 'pTM', 'i_pTM', 'pAE', 'i_pAE', 'ShapeComplementarity']
+            available_traj_metrics = [col for col in trajectory_metrics if col in trajectory_df.columns]
+
+            if available_traj_metrics:
+                # Create single box plot with all metrics (excluding dG and Target_RMSD)
+                fig, ax = plt.subplots(figsize=(8, 6))
+
+                # Prepare data for box plot
+                plot_data = []
+                labels = []
+
+                for metric in available_traj_metrics:
+                    data = trajectory_df[metric].dropna()
+                    if len(data) > 0:
+                        plot_data.append(data.values)
+                        labels.append(metric)
+
+                if plot_data:
+                    # Create box plot
+                    bp = ax.boxplot(plot_data, patch_artist=True, labels=labels)
+
+                    # Color the boxes
+                    for patch in bp['boxes']:
+                        patch.set_facecolor('lightgreen')
+                    for median in bp['medians']:
+                        median.set_color('red')
+
+                    # Add individual points with jitter
+                    for i, data in enumerate(plot_data):
+                        x_points = np.ones(len(data)) * (i + 1)  # Position points at box locations
+                        # Add jitter to x-coordinates to avoid overlap
+                        jitter = np.random.normal(0, boxplot_jitter, len(data))
+                        x_points_jittered = x_points + jitter
+                        ax.plot(x_points_jittered, data, 'o', color='darkgreen', alpha=0.6, markersize=4)
+
+                    ax.set_xlabel('Trajectory Metrics', fontsize=12)
+                    ax.set_ylabel('Value', fontsize=12)
+                    ax.set_title('Trajectory Analysis Metrics Distribution', fontsize=14, fontweight='bold')
+                    ax.tick_params(axis='x', rotation=45)
+                    ax.set_xticklabels(labels, rotation=45, ha='right')
+                    ax.grid(True, alpha=0.3)
+                    plt.tight_layout()
+                    plt.show()
+
+            # Separate box plot for Target_RMSD
+            if 'Target_RMSD' in trajectory_df.columns:
+                rmsd_data = trajectory_df['Target_RMSD'].dropna()
+                if len(rmsd_data) > 0:
+                    fig, ax = plt.subplots(figsize=(8, 6))
+                    
+                    # Create box plot for Target_RMSD
+                    bp = ax.boxplot(rmsd_data.values, patch_artist=True, labels=['Target_RMSD'])
+                    
+                    # Color the box
+                    bp['boxes'][0].set_facecolor('lightblue')
+                    bp['medians'][0].set_color('red')
+                    
+                    # Add individual points with jitter
+                    x_points = np.ones(len(rmsd_data))
+                    jitter = np.random.normal(0, boxplot_jitter, len(rmsd_data))
+                    x_points_jittered = x_points + jitter
+                    ax.plot(x_points_jittered, rmsd_data.values, 'o', color='darkblue', alpha=0.6, markersize=4)
+                    
+                    ax.set_xlabel('Metric', fontsize=12)
+                    ax.set_ylabel('Target RMSD Value', fontsize=12)
+                    ax.set_title('Target RMSD Distribution', fontsize=14, fontweight='bold')
+                    ax.grid(True, alpha=0.3)
+                    plt.tight_layout()
+                    plt.show()
+
+            # Separate box plot for dG
+            if 'dG' in trajectory_df.columns:
+                dg_data = trajectory_df['dG'].dropna()
+                if len(dg_data) > 0:
+                    fig, ax = plt.subplots(figsize=(8, 6))
+                    
+                    # Create box plot for dG
+                    bp = ax.boxplot(dg_data.values, patch_artist=True, labels=['dG'])
+                    
+                    # Color the box
+                    bp['boxes'][0].set_facecolor('lightcoral')
+                    bp['medians'][0].set_color('red')
+                    
+                    # Add individual points with jitter
+                    x_points = np.ones(len(dg_data))
+                    jitter = np.random.normal(0, boxplot_jitter, len(dg_data))
+                    x_points_jittered = x_points + jitter
+                    ax.plot(x_points_jittered, dg_data.values, 'o', color='darkred', alpha=0.6, markersize=4)
+                    
+                    ax.set_xlabel('Metric', fontsize=12)
+                    ax.set_ylabel('dG Value', fontsize=12)
+                    ax.set_title('dG Distribution', fontsize=14, fontweight='bold')
+                    ax.grid(True, alpha=0.3)
+                    plt.tight_layout()
+                    plt.show()
+```
+
+```{python}
+# | label: trajectory-ranking
+# | message: false
+
+if trajectory_df is not None and len(trajectory_df) > 0:
+    # Define columns to show in the table
+    table_cols = [
+        "Design",
+        "i_pTM",
+        "i_pAE",
+        "pLDDT",
+        "pTM",
+        "dG",
+        "ShapeComplementarity",
+        "Target_RMSD",
+        "Length",
+        "pAE",
+        "i_pLDDT",
+        "ss_pLDDT",
+        "Unrelaxed_Clashes",
+        "Relaxed_Clashes",
+        "Binder_Energy_Score",
+        "Surface_Hydrophobicity",
+        "PackStat",
+        "dSASA",
+        "dG/dSASA",
+        "Interface_SASA_%",
+        "Interface_Hydrophobicity",
+        "n_InterfaceResidues",
+        "n_InterfaceHbonds",
+        "InterfaceHbondsPercentage",
+        "n_InterfaceUnsatHbonds",
+        "InterfaceUnsatHbondsPercentage",
+        "Interface_Helix%",
+        "Interface_BetaSheet%",
+        "Interface_Loop%",
+        "Binder_Helix%",
+        "Binder_BetaSheet%",
+        "Binder_Loop%",
+    ]
+    available_table_cols = [col for col in table_cols if col in trajectory_df.columns]
+
+    if available_table_cols and "Design" in trajectory_df.columns:
+        # Create ranking table sorted by i_pTM
+        ranking_df = trajectory_df[available_table_cols].copy()
+        ranking_df = ranking_df.sort_values("i_pTM", ascending=False)
+
+        # Display top 20 designs (or less if fewer available)
+        print("\nTop 20 Trajectory Designs (ranked by i_pTM):")
+        display_df = ranking_df.head(20)
+
+        # Format numeric columns - Length as integer, others as float
+        numeric_cols = [col for col in available_table_cols if col != "Design"]
+        format_dict = {}
+        for col in numeric_cols:
+            if col == "Length":
+                format_dict[col] = "{:.0f}"  # Integer format
+            else:
+                format_dict[col] = "{:.3f}"  # Float format
+
+        styled_table = (
+            display_df.style.format(format_dict)
+            .background_gradient(cmap="RdYlGn", subset=["i_pTM"])
+            .hide(axis="index")
+        )
+        display(styled_table)
+```
+
+
+# MPNN Scores
+
+Summary of scores for designs after sequence generation with ProteinMPNN.
+
+```{python}
+#| label: mpnn-design-boxplots
+#| fig-width: 12
+#| fig-height: 8
+
+        if mpnn_design_df is not None and len(mpnn_design_df) > 0:
+            # Key metrics for box plots (excluding dG metrics)
+            key_metrics = ['MPNN_score', 'MPNN_seq_recovery', 'Average_pLDDT', 'Average_pTM',
+                           'Average_i_pTM', 'Average_i_pAE', 'Average_ShapeComplementarity']
+            available_metrics = [col for col in key_metrics if col in mpnn_design_df.columns]
+
+            if available_metrics:
+                # Create single box plot with all metrics (excluding dG)
+                fig, ax = plt.subplots(figsize=(8, 6))
+
+                # Prepare data for box plot
+                plot_data = []
+                labels = []
+
+                for metric in available_metrics:
+                    data = mpnn_design_df[metric].dropna()
+                    if len(data) > 0:
+                        plot_data.append(data.values)
+                        labels.append(metric)
+
+                if plot_data:
+                    # Create box plot
+                    bp = ax.boxplot(plot_data, patch_artist=True, labels=labels)
+
+                    # Color the boxes
+                    for patch in bp['boxes']:
+                        patch.set_facecolor('lightblue')
+                    for median in bp['medians']:
+                        median.set_color('red')
+
+                    # Add individual points
+                    for i, data in enumerate(plot_data):
+                        x_points = np.ones(len(data)) * (i + 1)  # Position points at box locations
+                        ax.plot(x_points, data, 'o', color='darkblue', alpha=0.6, markersize=4)
+
+                    ax.set_xlabel('MPNN Metrics', fontsize=12)
+                    ax.set_ylabel('Value', fontsize=12)
+                    ax.set_title('MPNN Design Metrics Distribution', fontsize=14, fontweight='bold')
+                    ax.tick_params(axis='x', rotation=45)
+                    ax.set_xticklabels(labels, rotation=45, ha='right')
+                    ax.grid(True, alpha=0.3)
+                    plt.tight_layout()
+                    plt.show()
+
+            # Separate box plot for Average_dG
+            if 'Average_dG' in mpnn_design_df.columns:
+                dg_data = mpnn_design_df['Average_dG'].dropna()
+                if len(dg_data) > 0:
+                    fig, ax = plt.subplots(figsize=(8, 6))
+                    
+                    # Create box plot for dG
+                    bp = ax.boxplot(dg_data.values, patch_artist=True, labels=['Average_dG'])
+                    
+                    # Color the box
+                    bp['boxes'][0].set_facecolor('lightcoral')
+                    bp['medians'][0].set_color('red')
+                    
+                    # Add individual points
+                    ax.plot(np.ones(len(dg_data)), dg_data.values, 'o', color='darkred', alpha=0.6, markersize=4)
+                    
+                    ax.set_xlabel('Metric', fontsize=12)
+                    ax.set_ylabel('dG Value', fontsize=12)
+                    ax.set_title('Average dG Distribution', fontsize=14, fontweight='bold')
+                    ax.grid(True, alpha=0.3)
+                    plt.tight_layout()
+                    plt.show()
+```
+
+```{python}
+#| label: mpnn-design-ranking
+#| message: false
+
+if mpnn_design_df is not None and len(mpnn_design_df) > 0:
+    # Define columns to show in the table
+    table_cols = ['Design', 'Average_i_pTM', 'Average_i_pAE', 'Average_pLDDT', 'Average_pTM', 
+                  'Average_dG', 'Average_ShapeComplementarity', 'Length']
+    available_table_cols = [col for col in table_cols if col in mpnn_design_df.columns]
+    
+    if available_table_cols and 'Design' in mpnn_design_df.columns:
+        # Create ranking table sorted by Average_i_pTM
+        ranking_df = mpnn_design_df[available_table_cols].copy()
+        ranking_df = ranking_df.sort_values('Average_i_pTM', ascending=False)
+        
+        # Display top 20 designs
+        print("\nTop MPNN Designs (ranked by Average_i_pTM):")
+        display_df = ranking_df.head(20)
+        
+        # Format numeric columns - Length as integer, others as float
+        numeric_cols = [col for col in available_table_cols if col != 'Design']
+        format_dict = {}
+        for col in numeric_cols:
+            if col == 'Length':
+                format_dict[col] = '{:.0f}'  # Integer format
+            else:
+                format_dict[col] = '{:.3f}'  # Float format
+        
+        styled_table = display_df.style.format(format_dict) \
+                                     .background_gradient(cmap='RdYlGn', subset=['Average_i_pTM']) \
+                                     .hide(axis='index')
+        display(styled_table)
+```
+
+
+# Accepted Design Statistics
+
+Summary of the final accepted designs (if available).
+
+```{python}
+# | label: accepted-designs-check
+# | message: false
+
+if final_design_df is None or len(final_design_df) == 0:
+    from IPython.display import HTML
+    html_content = """
+    <div style="
+        border: 2px solid #e74c3c;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px 0;
+        background: linear-gradient(135deg, #fdf2f2 0%, #fadbd8 100%);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    ">
+        <h3 style="text-align: center; font-size: 20px; color: #c0392b; margin: 0;">
+            No accepted designs
+        </h3>
+    </div>
+    """
+    display(HTML(html_content))
+```
+
+
+
+```{python}
+#| label: final-design-main-boxplots
+#| fig-width: 8
+#| fig-height: 6
+
+if final_design_df is not None and len(final_design_df) > 0:
+    # Key final design metrics for box plots (excluding dG)
+    final_metrics = ['Average_pLDDT', 'Average_pTM', 'Average_i_pTM', 'Average_i_pAE', 'Average_ShapeComplementarity', 
+                     'Average_ss_pLDDT', 'Average_Unrelaxed_Clashes', 'Average_Relaxed_Clashes', 'Average_Binder_Energy_Score',
+                     'Average_Surface_Hydrophobicity', 'Average_PackStat', 'Average_Interface_SASA_%', 'Average_Interface_Hydrophobicity',
+                     'Average_n_InterfaceResidues', 'Average_n_InterfaceHbonds', 'Average_InterfaceHbondsPercentage',
+                     'Average_n_InterfaceUnsatHbonds', 'Average_InterfaceUnsatHbondsPercentage', 'Average_Interface_Helix%',
+                     'Average_Interface_BetaSheet%', 'Average_Interface_Loop%', 'Average_Binder_Helix%', 'Average_Binder_BetaSheet%',
+                     'Average_Binder_Loop%', 'Average_Hotspot_RMSD', 'Average_Target_RMSD', 'Average_Binder_pLDDT', 'Average_Binder_pTM',
+                     'Average_Binder_pAE', 'Average_Binder_RMSD']
+    available_final_metrics = [col for col in final_metrics if col in final_design_df.columns]
+
+    if available_final_metrics:
+        # Main metrics (excluding dG, Binder_Energy_Score, Interface_Hydrophobicity, n_* metrics, Clashes, and RMSD)
+        main_metrics = [metric for metric in available_final_metrics 
+                       if metric not in ['Average_Binder_Energy_Score', 'Average_dG', 'Average_Interface_Hydrophobicity'] 
+                       and not metric.startswith('Average_n_')
+                       and 'Clashes' not in metric and 'RMSD' not in metric]
+        
+        # Create main box plot
+        if main_metrics:
+            fig, ax = plt.subplots(figsize=(8, 6))
+            plot_data = []
+            labels = []
+
+            for metric in main_metrics:
+                data = final_design_df[metric].dropna()
+                if len(data) > 0:
+                    # Convert percentage columns to proportions (0-1 scale)
+                    if any(percent_suffix in metric for percent_suffix in ['%', 'Percentage']):
+                        data = data / 100.0
+                        # Update label to indicate it's now a proportion
+                        label = metric.replace('Percentage', 'Prop').replace('%', '_prop')
+                    else:
+                        label = metric
+                    
+                    plot_data.append(data.values)
+                    labels.append(label)
+
+            if plot_data:
+                # Create box plot
+                bp = ax.boxplot(plot_data, patch_artist=True, labels=labels)
+
+                # Color the boxes
+                for patch in bp['boxes']:
+                    patch.set_facecolor('lightsteelblue')
+                for median in bp['medians']:
+                    median.set_color('red')
+
+                # Add individual points
+                for i, data in enumerate(plot_data):
+                    x_points = np.ones(len(data)) * (i + 1)  # Position points at box locations
+                    ax.plot(x_points, data, 'o', color='darkblue', alpha=0.6, markersize=4)
+
+                ax.set_xlabel('Final Design Metrics', fontsize=12)
+                ax.set_ylabel('Value', fontsize=12)
+                ax.set_title('Final Design Metrics Distribution', fontsize=14, fontweight='bold')
+                ax.tick_params(axis='x', rotation=45)
+                ax.set_xticklabels(labels, rotation=45, ha='right')
+                ax.grid(True, alpha=0.3)
+                plt.tight_layout()
+                plt.show()
+```
+
+```{python}
+# | label: final-design-tiled-boxplots
+# | fig-width: 3
+# | fig-height: 6
+
+if final_design_df is not None and len(final_design_df) > 0:
+    # Tiled box plots for Interface Hydrophobicity and n_* metrics
+    tiled_metrics = []
+    if "Average_Interface_Hydrophobicity" in final_design_df.columns:
+        tiled_metrics.append("Average_Interface_Hydrophobicity")
+    tiled_metrics.extend(
+        [col for col in available_final_metrics if col.startswith("Average_n_")]
+    )
+
+    if tiled_metrics:
+        # Calculate grid dimensions
+        n_plots = len(tiled_metrics)
+        cols = min(4, n_plots)  # Max 4 columns
+        rows = (n_plots + cols - 1) // cols  # Ceiling division
+
+        fig, axes = plt.subplots(
+            rows, cols, figsize=(2 * cols, 2 * rows)
+        )  # Same height as standalone
+        if n_plots == 1:
+            axes = [axes]
+        elif rows == 1:
+            axes = axes.reshape(1, -1)
+        elif cols == 1:
+            axes = axes.reshape(-1, 1)
+
+        for i, metric in enumerate(tiled_metrics):
+            row = i // cols
+            col = i % cols
+            ax = axes[row, col]
+
+            data = final_design_df[metric].dropna()
+            if len(data) > 0:
+                # Create box plot
+                bp = ax.boxplot(data.values, patch_artist=True, labels=[metric])
+
+                # Color the box
+                bp["boxes"][0].set_facecolor("lightcoral")
+                bp["medians"][0].set_color("red")
+
+                # Add individual points
+                x_points = np.ones(
+                    len(data)
+                )  # Create array of ones matching data length
+                ax.plot(
+                    x_points, data.values, "o", color="darkred", alpha=0.6, markersize=4
+                )
+
+                ax.grid(True, alpha=0.3)
+                ax.tick_params(axis="x", rotation=45)
+
+        # Hide empty subplots
+        for i in range(n_plots, rows * cols):
+            row = i // cols
+            col = i % cols
+            axes[row, col].set_visible(False)
+
+        plt.tight_layout()
+        plt.show()
+```
+
+```{python}
+# | label: final-design-standalone-boxplots
+# | fig-width: 3
+# | fig-height: 6
+
+if final_design_df is not None and len(final_design_df) > 0:
+    # Side-by-side standalone box plots
+    standalone_plots = []
+
+    # Collect all standalone plots
+    if "Average_Binder_Energy_Score" in final_design_df.columns:
+        standalone_plots.append(("Average_Binder_Energy_Score", ""))
+    if "Average_dG" in final_design_df.columns:
+        standalone_plots.append(("Average_dG", ""))
+
+    # Add Clashes metrics
+    clashes_metrics = [col for col in available_final_metrics if "Clashes" in col]
+    if clashes_metrics:
+        standalone_plots.append(("clashes_group", ""))
+
+    # Add RMSD metrics
+    rmsd_metrics = [col for col in available_final_metrics if "RMSD" in col]
+    if rmsd_metrics:
+        standalone_plots.append(("rmsd_group", ""))
+
+    if standalone_plots:
+        n_standalone = len(standalone_plots)
+        fig, axes = plt.subplots(
+            1, n_standalone, figsize=(2 * n_standalone, 6)
+        )  # Even narrower width
+        if n_standalone == 1:
+            axes = [axes]
+
+        for i, (plot_type, title) in enumerate(standalone_plots):
+            ax = axes[i]
+
+            if plot_type == "clashes_group":
+                # Create box plot for all Clashes metrics
+                plot_data = []
+                labels = []
+                for metric in clashes_metrics:
+                    data = final_design_df[metric].dropna()
+                    if len(data) > 0:
+                        plot_data.append(data.values)
+                        labels.append(metric)
+
+                if plot_data:
+                    bp = ax.boxplot(plot_data, patch_artist=True, labels=labels)
+                    for patch in bp["boxes"]:
+                        patch.set_facecolor("lightcoral")
+                    for median in bp["medians"]:
+                        median.set_color("red")
+
+                    # Add individual points
+                    for j, data in enumerate(plot_data):
+                        x_points = np.ones(len(data)) * (j + 1)
+                        ax.plot(
+                            x_points,
+                            data,
+                            "o",
+                            color="darkred",
+                            alpha=0.6,
+                            markersize=4,
+                        )
+
+                    ax.set_xticklabels(labels, rotation=45, ha="right")
+
+            elif plot_type == "rmsd_group":
+                # Create box plot for all RMSD metrics
+                plot_data = []
+                labels = []
+                for metric in rmsd_metrics:
+                    data = final_design_df[metric].dropna()
+                    if len(data) > 0:
+                        plot_data.append(data.values)
+                        labels.append(metric)
+
+                if plot_data:
+                    bp = ax.boxplot(plot_data, patch_artist=True, labels=labels)
+                    for patch in bp["boxes"]:
+                        patch.set_facecolor("lightcoral")
+                    for median in bp["medians"]:
+                        median.set_color("red")
+
+                    # Add individual points
+                    for j, data in enumerate(plot_data):
+                        x_points = np.ones(len(data)) * (j + 1)
+                        ax.plot(
+                            x_points,
+                            data,
+                            "o",
+                            color="darkred",
+                            alpha=0.6,
+                            markersize=4,
+                        )
+
+                    ax.set_xticklabels(labels, rotation=45, ha="right")
+
+            else:
+                # Single metric box plot
+                data = final_design_df[plot_type].dropna()
+                if len(data) > 0:
+                    bp = ax.boxplot(data.values, patch_artist=True, labels=[plot_type])
+                    bp["boxes"][0].set_facecolor("lightcoral")
+                    bp["medians"][0].set_color("red")
+
+                    x_points = np.ones(len(data))
+                    ax.plot(
+                        x_points,
+                        data.values,
+                        "o",
+                        color="darkred",
+                        alpha=0.6,
+                        markersize=4,
+                    )
+
+            ax.grid(True, alpha=0.3)
+            ax.tick_params(axis="x", rotation=45)
+
+        plt.tight_layout()
+        plt.show()
+```
+
+```{python}
+# | label: final-design-ranking
+# | message: false
+
+if final_design_df is not None and len(final_design_df) > 0:
+    # Define columns to show in the table
+    table_cols = [
+        "Design",
+        "Average_i_pTM",
+        "Average_i_pAE",
+        "Average_pLDDT",
+        "Average_pTM",
+        "Average_dG",
+        "Average_ShapeComplementarity",
+        "Average_Target_RMSD",
+        "Length",
+        "Average_ss_pLDDT",
+        "Average_Unrelaxed_Clashes",
+        "Average_Relaxed_Clashes",
+        "Average_Binder_Energy_Score",
+        "Average_Surface_Hydrophobicity",
+        "Average_PackStat",
+        "Average_Interface_SASA_%",
+        "Average_Interface_Hydrophobicity",
+        "Average_n_InterfaceResidues",
+        "Average_n_InterfaceHbonds",
+        "Average_InterfaceHbondsPercentage",
+        "Average_n_InterfaceUnsatHbonds",
+        "Average_InterfaceUnsatHbondsPercentage",
+        "Average_Interface_Helix%",
+        "Average_Interface_BetaSheet%",
+        "Average_Interface_Loop%",
+        "Average_Binder_Helix%",
+        "Average_Binder_BetaSheet%",
+        "Average_Binder_Loop%",
+        "Average_Hotspot_RMSD",
+        "Average_Binder_pLDDT",
+        "Average_Binder_pTM",
+        "Average_Binder_pAE",
+        "Average_Binder_RMSD",
+    ]
+    available_table_cols = [col for col in table_cols if col in final_design_df.columns]
+
+    if available_table_cols and "Design" in final_design_df.columns:
+        # Create ranking table sorted by Average_i_pTM
+        ranking_df = final_design_df[available_table_cols].copy()
+        ranking_df = ranking_df.sort_values("Average_i_pTM", ascending=False)
+
+        # Display all accepted designs (or less if fewer available)
+        print("\nFinal Accepted Designs (ranked by Average_i_pTM):")
+        display_df = ranking_df
+
+        # Format numeric columns - Length as integer, others as float
+        numeric_cols = [col for col in available_table_cols if col != "Design"]
+        format_dict = {}
+        for col in numeric_cols:
+            if col == "Length":
+                format_dict[col] = "{:.0f}"  # Integer format
+            else:
+                format_dict[col] = "{:.3f}"  # Float format
+
+        styled_table = (
+            display_df.style.format(format_dict)
+            .background_gradient(cmap="RdYlGn", subset=["Average_i_pTM"])
+            .hide(axis="index")
+        )
+        display(styled_table)
+```
+
+# Hotspot Analysis
+
+Analysis of design scores across different target hotspot selections.
+
+```{python}
+# | label: final-design-hotspot-heatmap
+# | fig-width: 10
+# | fig-height: 8
+
+if (
+    final_design_df is not None
+    and len(final_design_df) > 0
+    and "Target_Hotspot" in final_design_df.columns
+    and "Average_i_pTM" in final_design_df.columns
+):
+    # Parse Target_Hotspot column
+    def parse_hotspots(hotspot_str):
+        """Parse hotspot string, handling both single values and quoted lists"""
+        if pd.isna(hotspot_str):
+            return []
+
+        # Remove quotes if present
+        hotspot_str = str(hotspot_str).strip().strip("\"'")
+
+        # Check if it's a comma-separated list
+        if "," in hotspot_str:
+            return [h.strip() for h in hotspot_str.split(",")]
+        else:
+            return [hotspot_str]
+
+    # Extract unique hotspots
+    all_hotspots = []
+    for hotspot_str in final_design_df["Target_Hotspot"]:
+        hotspots = parse_hotspots(hotspot_str)
+        all_hotspots.extend(hotspots)
+
+    unique_hotspots = sorted(list(set(all_hotspots)))
+
+    # Check if all designs have identical hotspots
+    if len(unique_hotspots) <= 1:
+        print("All designs have identical target hotspots. Skipping hotspot heatmap.")
+    else:
+        # Create pivot table for heatmap
+        heatmap_data = []
+        design_names = []
+
+        for idx, row in final_design_df.iterrows():
+            hotspots = parse_hotspots(row["Target_Hotspot"])
+            i_pTM = row["Average_i_pTM"]
+
+            # Create a row for each hotspot in this design
+            for hotspot in hotspots:
+                if hotspot in unique_hotspots:
+                    heatmap_data.append([hotspot, row["Design"], i_pTM])
+                    design_names.append(row["Design"])
+
+        if heatmap_data:
+            # Create DataFrame for heatmap
+            heatmap_df = pd.DataFrame(
+                heatmap_data, columns=["Hotspot", "Design", "i_pTM"]
+            )
+            pivot_df = heatmap_df.pivot(
+                index="Design", columns="Hotspot", values="i_pTM"
+            )
+
+            # Fill NaN values with 0 or appropriate value
+            pivot_df = pivot_df.fillna(0)
+
+            # Perform hierarchical clustering
+            from scipy.cluster.hierarchy import dendrogram, linkage
+            from scipy.spatial.distance import pdist
+            import seaborn as sns
+
+            # Prepare data for clustering
+            X = pivot_df.values
+
+            # Sort rows by average i_pTM from highest to lowest
+            if len(pivot_df) > 1:
+                # Calculate average i_pTM for each design
+                design_avg_iptm = pivot_df.mean(axis=1)
+                # Sort by average i_pTM (highest to lowest)
+                row_order = design_avg_iptm.sort_values(ascending=False).index
+                pivot_df_clustered = pivot_df.loc[row_order]
+            else:
+                pivot_df_clustered = pivot_df
+
+            # Sort columns by letter prefix, then by number
+            def sort_hotspot_key(hotspot):
+                """Sort hotspots by letter prefix, then by number"""
+                import re
+
+                # Extract letter prefix and number
+                match = re.match(r"([A-Za-z]+)(\d+)", hotspot)
+                if match:
+                    letter_prefix = match.group(1)
+                    number = int(match.group(2))
+                    return (letter_prefix, number)
+                else:
+                    # Fallback for non-standard format
+                    return (hotspot, 0)
+
+            if len(pivot_df.columns) > 1:
+                # Sort columns using the custom key function
+                col_order = sorted(pivot_df.columns, key=sort_hotspot_key)
+                pivot_df_clustered = pivot_df_clustered.loc[:, col_order]
+
+            # Create heatmap with dendrogram
+            from scipy.cluster.hierarchy import dendrogram, linkage
+            from scipy.spatial.distance import pdist
+            import seaborn as sns
+
+            # Calculate height based on number of designs
+            height_per_design = 0.3  # inches per design
+            min_height = 6  # minimum height in inches
+            max_height = 20  # maximum height in inches
+            calculated_height = max(
+                min_height, min(max_height, len(pivot_df_clustered) * height_per_design)
+            )
+
+            # Create figure with proper height (narrower width)
+            fig = plt.figure(figsize=(8, calculated_height))
+
+            # Single subplot for heatmap
+            ax_heatmap = fig.add_subplot(111)
+
+            # Create custom colormap: white to red
+            import matplotlib.colors as mcolors
+            from matplotlib.colors import LinearSegmentedColormap
+
+            # Create custom colormap: white -> red
+            colors = ["white", "red"]
+            n_bins = 100
+            custom_cmap = LinearSegmentedColormap.from_list(
+                "custom_white_red", colors, N=n_bins
+            )
+
+            # Create heatmap
+            sns.heatmap(
+                pivot_df_clustered,
+                annot=False,  # Remove cell annotations
+                cmap=custom_cmap,
+                center=0.5,
+                cbar_kws={"label": "Average i_pTM"},
+                xticklabels=True,
+                yticklabels=True,
+                ax=ax_heatmap,
+            )
+
+            # Customize x-axis labels - show on both top and bottom
+            ax_heatmap.set_xticklabels(
+                ax_heatmap.get_xticklabels(), rotation=45, ha="center", fontsize=8
+            )
+            ax_heatmap.set_yticklabels(ax_heatmap.get_yticklabels(), fontsize=8)
+
+            # Add x-axis labels on top as well
+            ax_heatmap.xaxis.set_tick_params(labeltop=True, labelbottom=True)
+
+            # Adjust layout to prevent title overlap
+            plt.subplots_adjust(top=0.9)  # Leave more space for title
+
+            plt.suptitle(
+                "Accepted Design ipTM by Target Hotspot",
+                fontsize=14,
+                fontweight="bold",
+                y=1.0,
+            )
+            plt.tight_layout()
+            plt.show()
+```
+
+```{python}
+# | label: trajectory-hotspot-heatmap
+# | fig-width: 10
+# | fig-height: 10
+
+if (
+    trajectory_df is not None
+    and len(trajectory_df) > 0
+    and "Target_Hotspot" in trajectory_df.columns
+    and "i_pTM" in trajectory_df.columns
+):
+    # Parse Target_Hotspot column
+    def parse_hotspots(hotspot_str):
+        """Parse hotspot string, handling both single values and quoted lists"""
+        if pd.isna(hotspot_str):
+            return []
+
+        # Remove quotes if present
+        hotspot_str = str(hotspot_str).strip().strip("\"'")
+
+        # Check if it's a comma-separated list
+        if "," in hotspot_str:
+            return [h.strip() for h in hotspot_str.split(",")]
+        else:
+            return [hotspot_str]
+
+    # Extract unique hotspots
+    all_hotspots = []
+    for hotspot_str in trajectory_df["Target_Hotspot"]:
+        hotspots = parse_hotspots(hotspot_str)
+        all_hotspots.extend(hotspots)
+
+    unique_hotspots = sorted(list(set(all_hotspots)))
+
+    # Check if all designs have identical hotspots
+    if len(unique_hotspots) <= 1:
+        print(
+            "All trajectories have identical target hotspots. Skipping trajectory hotspot heatmap."
+        )
+    else:
+        # Create pivot table for heatmap
+        heatmap_data = []
+        design_names = []
+
+        for idx, row in trajectory_df.iterrows():
+            hotspots = parse_hotspots(row["Target_Hotspot"])
+            i_pTM = row["i_pTM"]
+
+            # Create a row for each hotspot in this design
+            for hotspot in hotspots:
+                if hotspot in unique_hotspots:
+                    heatmap_data.append([hotspot, row["Design"], i_pTM])
+                    design_names.append(row["Design"])
+
+        if heatmap_data:
+            # Create DataFrame for heatmap
+            heatmap_df = pd.DataFrame(
+                heatmap_data, columns=["Hotspot", "Design", "i_pTM"]
+            )
+            pivot_df = heatmap_df.pivot(
+                index="Design", columns="Hotspot", values="i_pTM"
+            )
+
+            # Fill NaN values with 0 or appropriate value
+            pivot_df = pivot_df.fillna(0)
+
+            # Perform hierarchical clustering
+            from scipy.cluster.hierarchy import dendrogram, linkage
+            from scipy.spatial.distance import pdist
+            import seaborn as sns
+
+            # Prepare data for clustering
+            X = pivot_df.values
+
+            # Sort rows by average i_pTM from highest to lowest
+            if len(pivot_df) > 1:
+                # Calculate average i_pTM for each design
+                design_avg_iptm = pivot_df.mean(axis=1)
+                # Sort by average i_pTM (highest to lowest)
+                row_order = design_avg_iptm.sort_values(ascending=False).index
+                pivot_df_clustered = pivot_df.loc[row_order]
+            else:
+                pivot_df_clustered = pivot_df
+
+            # Sort columns by letter prefix, then by number
+            def sort_hotspot_key(hotspot):
+                """Sort hotspots by letter prefix, then by number"""
+                import re
+
+                # Extract letter prefix and number
+                match = re.match(r"([A-Za-z]+)(\d+)", hotspot)
+                if match:
+                    letter_prefix = match.group(1)
+                    number = int(match.group(2))
+                    return (letter_prefix, number)
+                else:
+                    # Fallback for non-standard format
+                    return (hotspot, 0)
+
+            if len(pivot_df.columns) > 1:
+                # Sort columns using the custom key function
+                col_order = sorted(pivot_df.columns, key=sort_hotspot_key)
+                pivot_df_clustered = pivot_df_clustered.loc[:, col_order]
+
+            # Create heatmap with dendrogram
+            from scipy.cluster.hierarchy import dendrogram, linkage
+            from scipy.spatial.distance import pdist
+            import seaborn as sns
+
+            # Calculate height based on number of designs
+            height_per_design = 0.3  # inches per design
+            min_height = 6  # minimum height in inches
+            max_height = 20  # maximum height in inches
+            calculated_height = max(
+                min_height, min(max_height, len(pivot_df_clustered) * height_per_design)
+            )
+
+            # Create figure with proper height (narrower width)
+            fig = plt.figure(figsize=(10, calculated_height))
+
+            # Single subplot for heatmap
+            ax_heatmap = fig.add_subplot(111)
+
+            # Create custom colormap: white to red
+            import matplotlib.colors as mcolors
+            from matplotlib.colors import LinearSegmentedColormap
+
+            # Create custom colormap: white -> red
+            colors = ["white", "red"]
+            n_bins = 100
+            custom_cmap = LinearSegmentedColormap.from_list(
+                "custom_white_red", colors, N=n_bins
+            )
+
+            # Create heatmap
+            sns.heatmap(
+                pivot_df_clustered,
+                annot=False,  # Remove cell annotations
+                cmap=custom_cmap,
+                center=0.5,
+                cbar_kws={"label": "i_pTM"},
+                xticklabels=True,
+                yticklabels=True,
+                ax=ax_heatmap,
+            )
+
+            # Customize x-axis labels - show on both top and bottom
+            ax_heatmap.set_xticklabels(
+                ax_heatmap.get_xticklabels(), rotation=90, ha="center", fontsize=8
+            )
+            ax_heatmap.set_yticklabels(ax_heatmap.get_yticklabels(), fontsize=8)
+
+            # Add x-axis labels on top as well
+            ax_heatmap.xaxis.set_tick_params(labeltop=True, labelbottom=True)
+
+            # Adjust layout to prevent title overlap
+            plt.subplots_adjust(top=0.9)  # Leave more space for title
+
+            plt.suptitle(
+                "All Trajectory ipTM scores by Target Hotspot",
+                fontsize=14,
+                fontweight="bold",
+                y=1.0,
+            )
+            plt.tight_layout()
+            plt.show()
+```

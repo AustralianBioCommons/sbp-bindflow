@@ -1,5 +1,8 @@
 reports:
-  multiqc_report.html:
-    display: "MultiQC HTML report"
+  "*_report.html":
+    display: "HTML report"
   samplesheet.csv:
     display: "Auto-created samplesheet with collated metadata and FASTQ paths"
+  "*_final_design_stats.csv":
+    display: "Stats and Ranking"
+  
