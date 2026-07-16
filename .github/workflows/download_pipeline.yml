@@ -5,22 +5,14 @@ name: Test successful pipeline download with 'nf-core pipelines download'
 #  - when a PR is opened or reopened to master branch
 #  - the head branch of the pull request is updated, i.e. if fixes for a release are pushed last minute to dev.
 on:
+  # CI download test disabled on PRs: pull_request/pull_request_target triggers
+  # removed so this runs only when started manually. Restore them to re-enable.
   workflow_dispatch:
     inputs:
       testbranch:
         description: "The specific branch you wish to utilize for the test execution of nf-core pipelines download."
         required: true
         default: "dev"
-  pull_request:
-    types:
-      - opened
-      - edited
-      - synchronize
-    branches:
-      - master
-  pull_request_target:
-    branches:
-      - master
 
 env:
   NXF_ANSI_LOG: false
