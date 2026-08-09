@@ -52,8 +52,9 @@ process JSONMANAGER {
                 row['starting_pdb'] = os.path.basename(row['starting_pdb'])
             row['lengths'] = [int(row['min_length']), int(row['max_length'])]
             number_of_final_designs = int(row['number_of_final_designs'])
-            if batches > number_of_final_designs:
-                batches = number_of_final_designs
+            max_trajectories = int(row['max_trajectories'])
+            if batches > max_trajectories:
+                batches = max_trajectories
 
             settings_advanced = (row.get('settings_advanced') or '').strip()
             if not settings_advanced:
@@ -62,17 +63,21 @@ process JSONMANAGER {
             with open(settings_advanced, 'r') as advanced_file:
                 advanced_template = json.load(advanced_file)
             
-            batch_size = math.ceil(number_of_final_designs / batches)
-            row['number_of_final_designs'] = batch_size
+            max_trajectories_per_batch = math.ceil(max_trajectories / batches)
+            number_of_final_designs_per_batch = math.ceil(number_of_final_designs / batches)
+            row['number_of_final_designs'] = number_of_final_designs_per_batch
+            row.pop('max_trajectories', None)
             for batch_id in range(0, batches):
                 if batch_id == batches - 1:
-                    row['number_of_final_designs'] = number_of_final_designs - batch_id * batch_size
+                    row['number_of_final_designs'] = number_of_final_designs - batch_id * number_of_final_designs_per_batch
                 row['design_path'] = f"{sample_id}_{batch_id}_output"
                 with open(f"target_json/{sample_id}-{batch_id}.json", 'w') as jsonfile:
                     json.dump(row, jsonfile, indent=2)
 
                 advanced_settings = dict(advanced_template)
-                advanced_settings['max_trajectories'] = row['number_of_final_designs']
+                advanced_settings['max_trajectories'] = max_trajectories_per_batch
+                if batch_id == batches - 1:
+                    advanced_settings['max_trajectories'] = max_trajectories - batch_id * max_trajectories_per_batch
                 with open(f"advanced_json/{sample_id}-{batch_id}-advanced.json", 'w') as advanced_json_file:
                     json.dump(advanced_settings, advanced_json_file, indent=2)
         

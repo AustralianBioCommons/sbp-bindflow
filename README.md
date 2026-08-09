@@ -62,8 +62,8 @@ First, prepare a samplesheet with your input data that looks as follows:
 `samplesheet.csv`:
 
 ```csv
-id,binder_name,starting_pdb,chains,target_hotspot_residues,min_length,max_length,number_of_final_designs,settings_advanced,settings_filters
-demo,PDL1,PDL1.pdb,A,"56",65,150,10,default_4stage_multimer.json,default_filters.json
+id,binder_name,starting_pdb,chains,target_hotspot_residues,min_length,max_length,number_of_final_designs,max_trajectories,settings_advanced,settings_filters
+demo,PDL1,PDL1.pdb,A,"56",65,150,10,100,default_4stage_multimer.json,default_filters.json
 ```
 
 Each row represents a single design instance. Detailed documentation describing job parameters can be found in the BindCraft [documentation](https://github.com/martinpacesa/BindCraft).
@@ -76,6 +76,7 @@ Briefly:
 - **min_length** defines the minimum length of the designed binder.
 - **max_length** defines the maximum length of the designed binder.
 - **number_of_final_designs** defines the number of binders required to pass QC criteria before the job is complete.
+- **max_trajectories** defines the maximum number of design trajectories (if provided in **settings_advanced** as well, it will be overridden).
 - **settings_advanced** defines advanced BindCraft settings (JSON format).
 - **settings_filters** defines advanced BindCraft filter settings (JSON format).
 

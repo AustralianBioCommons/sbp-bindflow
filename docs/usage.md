@@ -45,8 +45,8 @@ You will need to create a samplesheet with information about the binder design j
 A final samplesheet file will look something like the one below. This is for a single design job aiming to produce 10 binders that pass QC between lengths 65-150, targeting the PDL1 protein at hotspot residue 56.
 
 ```csv title="samplesheet.csv"
-id,binder_name,starting_pdb,chains,target_hotspot_residues,min_length,max_length,number_of_final_designs,settings_advanced,settings_filters
-demo,PDL1,PDL1.pdb,A,"56",65,150,10,default_4stage_multimer.json,default_filters.json
+id,binder_name,starting_pdb,chains,target_hotspot_residues,min_length,max_length,number_of_final_designs,max_trajectories,settings_advanced,settings_filters
+demo,PDL1,PDL1.pdb,A,"56",65,150,10,100,default_4stage_multimer.json,default_filters.json
 ```
 
 | Column    | Description                                                                                                                                                                            |
@@ -59,6 +59,7 @@ demo,PDL1,PDL1.pdb,A,"56",65,150,10,default_4stage_multimer.json,default_filters
 | `min_length` | The minimum length to sample from potential binders.                                                             |
 | `max_length` | The maximum length to sample for potential binders.                                                             |
 | `number_of_final_designs` | The number of designs that pass all QC criteria before the pipeline will complete.                 |
+| `max_trajectories` | The maximum number of design trajectories (if provided in `settings_advanced` as well, it will be overridden).                          |
 | `settings_advanced` | Full path to json file defining bindcraft advanced settings (Optional: Default is `default_4stage_multimer.json`)                      |
 | `settings_filters` | Full path to json file defining bindcraft QC filter settings (Optional: Default is `default_filters.json`)                  |
 
