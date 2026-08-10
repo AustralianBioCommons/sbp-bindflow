@@ -81,7 +81,8 @@ workflow RUN_BINDCRAFT {
     BINDCRAFT.out.accepted
         .map{[["id": it[0].id], it[1]]}
         .groupTuple()
-        .join(ch_final_designs)
+        .join(ch_final_designs, remainder: true)
+        .map { [it[0], it[1] ?: [], it[2]] }
         .subscribe{
             if (it[1].size() < it[2]){
                 log.warn "Sample: ${it[0].id}: The pipeline was unable to generate the target number of successful designs (${it[1].size()} of ${it[2]}) in the allocated time. Please consider changing hotspot residues or design configuration to increase design success rates"
