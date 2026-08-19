@@ -30,6 +30,13 @@ RUN sed -i 's/\<micromamba-forge\>/conda-forge/g' install_bindcraft.sh
 
 RUN bash install_bindcraft.sh --cuda '12.4' --pkg_manager 'micromamba' --no-pyrosetta
 ENV PATH="$PATH:/work/FreeBindCraft"
-ENV PYTHONPATH="${PYTHONPATH:-}/work/FreeBindCraft"
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends procps && rm -rf /var/lib/apt/lists/*
+USER mambauser
+RUN micromamba install -y -n base -c conda-forge ffmpeg && \
+    micromamba clean -a -y
+ENV PATH=/opt/conda/bin:$PATH
+ENV PYTHONPATH="/work/FreeBindCraft"
+
 # Set default command
 CMD ["python", "-u", "bindcraft.py"]
