@@ -36,8 +36,7 @@ workflow RUN_BINDCRAFT {
        [
             ["id": row.id], 
             file(row.starting_pdb, checkIfExists: true),
-            get_file(row.settings_filters, params.settings_filters, "${projectDir}/assets/bindcraft/default_filters.json"),
-            get_file(row.settings_advanced, params.settings_advanced, "${projectDir}/assets/bindcraft/default_4stage_multimer.json"),    
+            get_file(row.settings_filters, params.settings_filters, "${projectDir}/assets/bindcraft/default_filters.json")
        ]
     }
     .set { ch_settings }
@@ -57,10 +56,19 @@ workflow RUN_BINDCRAFT {
 
     JSONMANAGER.out.json
         .flatten()
-        .map{[["id": it.baseName.split('-')[0..-2].join('-')], it.baseName.split('-')[-1].replace(".json", ""), it]}
+        .map{[["id": it.baseName.split('-')[0..-2].join('-'), "batch": it.baseName.split('-')[-1].replace(".json", "")], it]}
+        .join(
+            JSONMANAGER.out.advanced_json
+                .flatten()
+                .map{
+                    def stripped_base = it.baseName.replaceFirst(/-advanced$/, '')
+                    [["id": stripped_base.split('-')[0..-2].join('-'), "batch": stripped_base.split('-')[-1]], it]
+                }
+        )
+        .map{[["id": it[0].id], it[0].batch, it[1], it[2]]}
         .combine(ch_settings)
-        .filter{it[0].id == it[3].id}
-        .map{[["id": it[0].id, "batch": it[1]], it[2], it[4], it[5], it[6]]}
+        .filter{it[0].id == it[4].id}
+        .map{[["id": it[0].id, "batch": it[1]], it[2], it[5], it[6], it[3]]}
         .set {ch_bindcraft_input}
     
     BINDCRAFT(
@@ -73,7 +81,8 @@ workflow RUN_BINDCRAFT {
     BINDCRAFT.out.accepted
         .map{[["id": it[0].id], it[1]]}
         .groupTuple()
-        .join(ch_final_designs)
+        .join(ch_final_designs, remainder: true)
+        .map { [it[0], it[1] ?: [], it[2]] }
         .subscribe{
             if (it[1].size() < it[2]){
                 log.warn "Sample: ${it[0].id}: The pipeline was unable to generate the target number of successful designs (${it[1].size()} of ${it[2]}) in the allocated time. Please consider changing hotspot residues or design configuration to increase design success rates"
