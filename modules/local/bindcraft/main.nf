@@ -10,7 +10,7 @@ process BINDCRAFT {
     output:
         tuple val(meta), path("*_final_design_stats.csv"), emit: stats
         tuple val(meta), path("*_output/Accepted/Ranked"), emit: accepted_ranked
-        tuple val(meta), path("*_output/Accepted/*pdb"), emit: accepted
+        tuple val(meta), path("*_output/Accepted/*pdb"), emit: accepted,  optional: true
         tuple val(meta), path("*_output"), emit: output_dir
         tuple val(meta), path("*_output/failure_csv.csv") , emit: failure_csv
         tuple val(meta), path("*_output/final_design_stats.csv"), emit: final_design_stats
@@ -26,7 +26,7 @@ process BINDCRAFT {
     def args = task.ext.args ?: ''
     
     """
-    python /work/FreeBindCraft/bindcraft.py \\
+    python -u /work/FreeBindCraft/bindcraft.py \\
         --settings ${target_file} \\
         --filters ${filters} \\
         --advanced ${advanced_settings} \\
