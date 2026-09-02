@@ -56,6 +56,13 @@
                 "errorMessage": "",
                 "meta": ["number_of_final_designs"]
             },
+            "max_trajectories": {
+                "type": "integer",
+                "minimum": 1,
+                "default": 1000,
+                "errorMessage": "",
+                "meta": ["max_trajectories"]
+            },
             "settings_filters": {
                 "type": "string",
                 "format": "file-path",
@@ -70,6 +77,6 @@
             }
         },
         "required": ["id", "binder_name", "starting_pdb", "chains", "target_hotspot_residues",
-                    "min_length", "max_length", "number_of_final_designs"]
+                    "min_length", "max_length", "number_of_final_designs", "max_trajectories"]
     }
 }
